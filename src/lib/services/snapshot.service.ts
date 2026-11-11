@@ -17,6 +17,20 @@ const ROW_ID = 1;
  * The loss window is one interval: a write in the last seconds before a hard
  * kill (not the SIGTERM a sleep sends) is lost.
  */
+/**
+ * Neon's copy-paste URL carries `channel_binding=require`, which Bun's client
+ * doesn't take; TLS (`sslmode`) still applies without it.
+ */
+export function withoutChannelBinding(url: string): string {
+	try {
+		const parsed = new URL(url);
+		parsed.searchParams.delete("channel_binding");
+		return parsed.toString();
+	} catch {
+		return url;
+	}
+}
+
 export class SnapshotService {
 	readonly #sql: SQL;
 	#lastChanges = -1;
@@ -29,7 +43,11 @@ export class SnapshotService {
 	) {
 		// No named prepared statements: a pooled endpoint (Neon's `-pooler`
 		// host is PgBouncer) can hand the next query another server session.
-		this.#sql = new SQL({ url, prepare: false, max: 1 });
+		this.#sql = new SQL({
+			url: withoutChannelBinding(url),
+			prepare: false,
+			max: 1,
+		});
 	}
 
 	async #ensureTable(): Promise<void> {
