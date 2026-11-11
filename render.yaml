@@ -1,0 +1,27 @@
+# Render Blueprint for Movie Night: one free Docker web service.
+# The database lives in Postgres (MOVIE_NIGHT_DATABASE_URL), because a free
+# Render disk is wiped on every restart.
+services:
+  - type: web
+    name: movie-night
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: "3000"
+      - key: PROTOCOL_HEADER
+        value: x-forwarded-proto
+      - key: ADDRESS_HEADER
+        value: x-forwarded-for
+      - key: NUVIO_DATA_DIR
+        value: /app/data
+      - key: NUVIO_SESSION_SECRET
+        generateValue: true
+      # Entered in the Render dashboard, never committed.
+      - key: NUVIO_ADMIN_EMAILS
+        sync: false
+      - key: MOVIE_NIGHT_DATABASE_URL
+        sync: false
