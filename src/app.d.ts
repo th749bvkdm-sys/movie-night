@@ -20,6 +20,8 @@ declare global {
 				accountKey: string;
 				backend: string | null;
 				trusted: boolean;
+				/** The admin-set access timer (unix ms), null when unlimited. */
+				accessExpiresAt: number | null;
 			} | null;
 			profileId: number | null;
 			authCookie: string;

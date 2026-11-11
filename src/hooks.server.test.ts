@@ -44,6 +44,15 @@ vi.mock("#lib/admin/admin-data.js", () => ({
 	isLocked: () => admin.isLocked(),
 }));
 
+const timers = vi.hoisted(() => ({
+	expired: vi.fn(() => false),
+	expiry: vi.fn(() => null as number | null),
+}));
+vi.mock("#lib/admin/timers-data.js", () => ({
+	isTimerExpired: (...args: unknown[]) => timers.expired(...(args as [])),
+	timerExpiry: (...args: unknown[]) => timers.expiry(...(args as [])),
+}));
+
 vi.mock("#lib/admin/backends-data.js", () => ({
 	policyOrDefault: (db: unknown) =>
 		db ? backends.policy : { customAllowed: false, defaultBackend: null },
@@ -137,6 +146,8 @@ beforeEach(() => {
 	backends.banned.clear();
 	database.tryConnect.mockReturnValue(null);
 	env.allowCustom = false;
+	timers.expired.mockReturnValue(false);
+	timers.expiry.mockReturnValue(null);
 });
 
 describe("handle", () => {
@@ -183,8 +194,36 @@ describe("handle", () => {
 			accountKey: "u1",
 			backend: null,
 			trusted: true,
+			accessExpiresAt: null,
 		});
 		expect(event.locals.profileId).toBe(3);
+	});
+
+	it("signs out a session whose account timer has run out", async () => {
+		session.read.mockReturnValue(storedSession());
+		database.tryConnect.mockReturnValue({ marker: "db" });
+		timers.expired.mockReturnValue(true);
+		const event = fakeEvent();
+
+		await handle({ event, resolve: ok } as never);
+
+		expect(session.clear).toHaveBeenCalled();
+		expect(store.deleteAllForUser).toHaveBeenCalledWith("u1");
+		expect(event.locals.session).toBeNull();
+	});
+
+	it("exposes a running timer's expiry for the countdown", async () => {
+		session.read.mockReturnValue(storedSession());
+		database.tryConnect.mockReturnValue({ marker: "db" });
+		timers.expired.mockReturnValue(false);
+		timers.expiry.mockReturnValue(1_900_000_000_000);
+		const event = fakeEvent();
+
+		await handle({ event, resolve: ok } as never);
+
+		expect(event.locals.session).toMatchObject({
+			accessExpiresAt: 1_900_000_000_000,
+		});
 	});
 
 	it("goes signed-out for this request, keeping the session, when a refresh hits an upstream hiccup", async () => {

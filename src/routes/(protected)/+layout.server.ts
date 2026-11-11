@@ -24,6 +24,9 @@ export const load: LayoutServerLoad = async ({ locals, url, fetch }) => {
 	return {
 		user: locals.session.user,
 		accountKey: locals.session.accountKey,
+		// Drives the access countdown; the server enforces the expiry itself.
+		accessExpiresAt: locals.session.accessExpiresAt,
+		serverNow: Date.now(),
 		// Drives the nav entry only : every admin route and remote function
 		// checks server-side on its own.
 		isAdmin: locals.services

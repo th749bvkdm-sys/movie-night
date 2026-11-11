@@ -15,6 +15,7 @@ import {
 	isDefaultBackend,
 	policyOrDefault,
 } from "#lib/admin/backends-data.js";
+import { isTimerExpired, timerExpiry } from "#lib/admin/timers-data.js";
 import { BUILT_IN_BACKEND } from "#lib/backend/tokens.js";
 import { makeErrorId } from "#lib/core/error-id.js";
 import { m } from "#lib/i18n/index.js";
@@ -33,6 +34,7 @@ import {
 import { createRequestScope, serverServices } from "#lib/services/server.js";
 import type { StoredSession } from "#lib/services/session.service.js";
 import { SESSION_STORE } from "#lib/services/session-store.service.js";
+import { SnapshotService } from "#lib/services/snapshot.service.js";
 import { dev } from "$app/env";
 import { NUVIO_ALLOW_CUSTOM_BACKENDS } from "$app/env/private";
 
@@ -222,6 +224,18 @@ function isAllowed(
 	admin: AdminService,
 ): boolean {
 	const backend = stored.backend;
+	// An account whose timer ran out is signed out whichever backend it uses.
+	const timedEmail = stored.user.email;
+	if (
+		timedEmail &&
+		isTimerExpired(
+			db,
+			timedEmail,
+			admin.isAdmin(timedEmail, isDefaultBackend(backend, policy)),
+		)
+	) {
+		return false;
+	}
 	if (isDefaultBackend(backend, policy)) {
 		const email = stored.user.email;
 		return !email || canSignIn(db, email, admin.isAdmin(email, true));
@@ -266,6 +280,14 @@ function evictIfNotAllowed(
 	return true;
 }
 
+/** When the signed-in account's access ends, or null when it has no timer. */
+function accessExpiry(
+	db: Database | null,
+	stored: StoredSession,
+): number | null {
+	return db && stored.user.email ? timerExpiry(db, stored.user.email) : null;
+}
+
 export const appHandle: Handle = async ({ event, resolve }) => {
 	const startedAt = performance.now();
 	const services = createRequestScope(event);
@@ -300,6 +322,7 @@ export const appHandle: Handle = async ({ event, resolve }) => {
 				accountKey: stored.accountKey,
 				backend: stored.backend?.url ?? null,
 				trusted: isDefaultBackend(stored.backend, policy),
+				accessExpiresAt: accessExpiry(db, stored),
 			}
 		: null;
 	event.locals.profileId = stored ? session.readProfileId() : null;
@@ -330,7 +353,20 @@ export const appHandle: Handle = async ({ event, resolve }) => {
 // Locale first, so everything below (and the render) runs in the visitor's
 // language.
 /** `NUVIO_ALLOW_CUSTOM_BACKENDS` is a starting point: an admin's own choice on /admin wins. */
-export const init: ServerInit = () => {
+// `MOVIE_NIGHT_DATABASE_URL` (Postgres) keeps the SQLite file across restarts
+// on hosts with a wiped disk: restored before anything connects.
+const SNAPSHOT_URL = process.env.MOVIE_NIGHT_DATABASE_URL ?? "";
+let snapshots: SnapshotService | null = null;
+
+export const init: ServerInit = async () => {
+	if (SNAPSHOT_URL && !dev) {
+		const database = serverServices.get(DATABASE);
+		snapshots = new SnapshotService(SNAPSHOT_URL, hooksLogger());
+		// Fail closed: starting empty and then saving would overwrite the
+		// good copy with a blank database.
+		await snapshots.restore(database.directory);
+		snapshots.start(() => database.tryConnect());
+	}
 	if (!NUVIO_ALLOW_CUSTOM_BACKENDS) {
 		return;
 	}
@@ -348,6 +384,11 @@ export const handle = sequence(i18nHandle, appHandle);
 if (!dev) {
 	process.on("sveltekit:shutdown", async (reason: string) => {
 		hooksLogger().info("Shutting down", { reason });
+		await snapshots
+			?.stop(serverServices.get(DATABASE).tryConnect())
+			.catch(() => {
+				// A failed save is already logged; shutdown goes on regardless.
+			});
 		await serverServices.shutdown();
 	});
 }

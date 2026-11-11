@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { isTimerExpired } from "./timers-data.ts";
 
 /**
  * Queries behind the admin page. Every function takes its `Database` so the
@@ -146,6 +147,9 @@ export function canSignIn(
 	email: string,
 	isAdmin: boolean,
 ): boolean {
+	if (isTimerExpired(db, email, isAdmin)) {
+		return false;
+	}
 	if (isAdmin || !isLocked(db)) {
 		return true;
 	}

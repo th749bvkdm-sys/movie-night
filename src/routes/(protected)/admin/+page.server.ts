@@ -9,6 +9,7 @@ import {
 	topTitles,
 	weeklyNewAndReturning,
 } from "#lib/admin/stats-data.js";
+import { listTimers } from "#lib/admin/timers-data.js";
 import { BUILT_IN_BACKEND } from "#lib/backend/tokens.js";
 import { requireAdmin } from "#lib/server/guards.js";
 import { ADMIN_NOTIFICATIONS } from "#lib/services/admin-notifier.service.js";
@@ -40,6 +41,8 @@ export const load: PageServerLoad = () => {
 	return {
 		locked: isLocked(db),
 		allowlist: listAllowlist(db),
+		timers: listTimers(db),
+		serverNow: Date.now(),
 		admins: [...services.get(ADMIN).emails],
 		overview: deferred(logger, "overview", () => statsOverview(db), null),
 		activeDays: deferred(logger, "activeDays", () => activePerDay(db), []),

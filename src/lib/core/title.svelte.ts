@@ -12,7 +12,7 @@ import { browser } from "$app/env";
  * the bare app name and the client fills in the real title on mount. The page
  * comes first so a narrow tab still shows it.
  */
-const APP_NAME = "Nuvio Web (unofficial)";
+const APP_NAME = "Movie Night";
 
 class PageTitle {
 	#segment = $state<string | null>(null);

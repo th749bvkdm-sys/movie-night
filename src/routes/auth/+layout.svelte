@@ -33,7 +33,7 @@
     <PosterWall />
     <div class="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-linear-to-t from-background/90 via-background/50 to-transparent"></div>
     <div class="relative flex flex-col gap-4">
-      <img src="/logo-text.webp" alt="Nuvio" width={132} class="drop-shadow md:w-40" />
+      <img src="/logo-text.webp" alt="Movie Night" width={132} class="drop-shadow md:w-40" />
       <p class="text-3xl font-semibold tracking-tight text-balance md:text-5xl lg:text-6xl">
         {m.auth_tagline()}
       </p>

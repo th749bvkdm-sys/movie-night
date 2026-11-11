@@ -13,6 +13,7 @@
 	import UsersIcon from "@lucide/svelte/icons/users";
 	import XIcon from "@lucide/svelte/icons/x";
 	import { ACCOUNT_SECTIONS } from "#lib/account/sections.js";
+	import AccessCountdown from "#lib/components/chrome/access-countdown.svelte";
 	import FirstRunNotice from "#lib/components/chrome/first-run-notice.svelte";
 	import HealthBanner from "#lib/components/chrome/health-banner.svelte";
 	import InstallDialog from "#lib/components/chrome/install-dialog.svelte";
@@ -471,6 +472,11 @@
         )}
     >
         <div class="flex-1">
+            <AccessCountdown
+                expiresAt={data.accessExpiresAt}
+                serverNow={data.serverNow}
+                visible={!immersive}
+            />
             {#if !immersive}
                 <HealthBanner />
             {/if}
@@ -485,7 +491,7 @@
         >
             <Separator class="mb-4 bg-border/60" />
             <span class="font-medium text-foreground/70"
-                >Nuvio Web <span class="font-normal tabular-nums">v{getVersion()}</span></span
+                >Movie Night <span class="font-normal tabular-nums">v{getVersion()}</span></span
             >
             <span>{m.shell_footer_tagline()}</span>
             <div class="flex items-center gap-4">

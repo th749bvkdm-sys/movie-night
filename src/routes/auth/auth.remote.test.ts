@@ -70,6 +70,10 @@ vi.mock("#lib/admin/admin-data.js", () => ({
 	isLocked: () => adminData.isLocked(),
 	recordSignIn: (...args: unknown[]) => adminData.recordSignIn(...(args as [])),
 }));
+const timers = vi.hoisted(() => ({ expired: vi.fn(() => false) }));
+vi.mock("#lib/admin/timers-data.js", () => ({
+	isTimerExpired: (...args: unknown[]) => timers.expired(...(args as [])),
+}));
 vi.mock("#lib/admin/backends-data.js", () => ({
 	policyOrDefault: () => backendsData.policy,
 	isDefaultBackend: (
@@ -335,6 +339,22 @@ describe("the instance lock", () => {
 		expect(client.signInWithPassword).not.toHaveBeenCalled();
 		expect(logger.warn).toHaveBeenCalledWith(
 			"Blocked sign-in: instance is locked",
+			{ email: "a@b.com" },
+		);
+	});
+
+	it("refuses an account whose timer ran out, with its own reason", async () => {
+		timers.expired.mockReturnValueOnce(true);
+
+		await expect(
+			signIn({ email: "a@b.com", password: "pw", redirectTo: "/" }, issue),
+		).rejects.toMatchObject({
+			payload: expect.stringContaining("access time"),
+		});
+
+		expect(client.signInWithPassword).not.toHaveBeenCalled();
+		expect(logger.warn).toHaveBeenCalledWith(
+			"Blocked sign-in: access timer ended",
 			{ email: "a@b.com" },
 		);
 	});

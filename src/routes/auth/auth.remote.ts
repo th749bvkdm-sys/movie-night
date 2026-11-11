@@ -7,6 +7,7 @@ import {
 	recordCustomSignIn,
 } from "#lib/admin/backends-data.js";
 import { adminTabSearch } from "#lib/admin/tabs.js";
+import { isTimerExpired } from "#lib/admin/timers-data.js";
 import { BUILT_IN_BACKEND } from "#lib/backend/tokens.js";
 import { safeRedirectPath } from "#lib/core/url.js";
 import { signInSchema, signUpSchema } from "#lib/forms/schemas.js";
@@ -109,7 +110,12 @@ function assertAllowed(email: string, backend: NuvioBackend | null): void {
 	if (!db) {
 		return;
 	}
-	if (!isTrusted(backend)) {
+	const trusted = isTrusted(backend);
+	if (isTimerExpired(db, email, services.get(ADMIN).isAdmin(email, trusted))) {
+		services.get(LOGGER).warn("Blocked sign-in: access timer ended", { email });
+		invalid(m.auth_error_access_ended());
+	}
+	if (!trusted) {
 		if (isLocked(db)) {
 			invalid(m.auth_error_backend_locked());
 		}

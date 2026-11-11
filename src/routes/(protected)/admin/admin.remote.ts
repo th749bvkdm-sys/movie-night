@@ -6,6 +6,8 @@ import {
 	setLocked,
 } from "#lib/admin/admin-data.js";
 import { adminTabSearch } from "#lib/admin/tabs.js";
+import { durationMs, TIMER_UNITS } from "#lib/admin/timers.js";
+import { removeTimer, setTimer, shiftTimer } from "#lib/admin/timers-data.js";
 import { m } from "#lib/i18n/index.js";
 import {
 	type EmailContent,
@@ -127,5 +129,100 @@ export const setNotificationEmail = form(
 		event.locals.services
 			.get(ADMIN_NOTIFICATIONS)
 			.setEmailEnabled(email, data.enabled === "on");
+	},
+);
+
+const timerEmail = v.pipe(
+	v.string(),
+	v.trim(),
+	v.nonEmpty(() => m.admin_error_email_required()),
+	v.email(() => m.common_email_invalid()),
+);
+const timerAmount = v.pipe(
+	v.number(() => m.admin_timer_error_amount()),
+	v.minValue(1, () => m.admin_timer_error_amount()),
+	v.maxValue(100_000, () => m.admin_timer_error_amount()),
+);
+
+// A custom date comes from a `datetime-local` input, which has no zone: the
+// browser sends its offset alongside so the server (UTC on most hosts) reads
+// it as the admin meant it.
+function parseLocalDate(value: string, offsetMinutes: number): number | null {
+	const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+	if (!match) {
+		return null;
+	}
+	const [, year, month, day, hour, minute] = match.map(Number);
+	return Date.UTC(year, month - 1, day, hour, minute) + offsetMinutes * 60_000;
+}
+
+/** Starts (or replaces) an account's timer: a duration from now, or a date. */
+export const setAccountTimer = form(
+	v.object({
+		email: timerEmail,
+		mode: v.picklist(["duration", "date"]),
+		amount: v.optional(v.number()),
+		unit: v.picklist(TIMER_UNITS),
+		until: v.optional(v.string(), ""),
+		tz: v.optional(v.string(), "0"),
+	}),
+	(data) => {
+		const { email, event } = requireAdmin();
+		const now = Date.now();
+		let expiresAt: number;
+		if (data.mode === "date") {
+			const parsed = parseLocalDate(data.until, Number(data.tz) || 0);
+			if (parsed === null || parsed <= now) {
+				invalid(m.admin_timer_error_date());
+			}
+			expiresAt = parsed;
+		} else {
+			const amount = v.safeParse(timerAmount, data.amount);
+			if (!amount.success) {
+				invalid(m.admin_timer_error_amount());
+			}
+			expiresAt = now + durationMs(amount.output, data.unit);
+		}
+		setTimer(
+			event.locals.services.get(DATABASE).connect(),
+			data.email,
+			expiresAt,
+			{ setBy: email, now },
+		);
+		event.locals.services
+			.get(LOGGER)
+			.info("Account timer set", { account: data.email, by: email });
+	},
+);
+
+/** Extends or shortens an existing timer by a duration. */
+export const shiftAccountTimer = form(
+	v.object({
+		email: v.pipe(v.string(), v.nonEmpty()),
+		direction: v.picklist(["extend", "shorten"]),
+		amount: timerAmount,
+		unit: v.picklist(TIMER_UNITS),
+	}),
+	(data) => {
+		const { email, event } = requireAdmin();
+		const delta = durationMs(data.amount, data.unit);
+		const moved = shiftTimer(
+			event.locals.services.get(DATABASE).connect(),
+			data.email,
+			data.direction === "extend" ? delta : -delta,
+			{ setBy: email },
+		);
+		if (!moved) {
+			invalid(m.admin_timer_error_missing());
+		}
+	},
+);
+
+/** Removes the timer: the account's access becomes unlimited again. */
+export const clearAccountTimer = form(
+	v.object({ email: v.pipe(v.string(), v.nonEmpty()) }),
+	(data) => {
+		const { event } = requireAdmin();
+		removeTimer(event.locals.services.get(DATABASE).connect(), data.email);
 	},
 );

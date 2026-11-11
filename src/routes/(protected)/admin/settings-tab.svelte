@@ -7,6 +7,7 @@
 	import TrashIcon from "@lucide/svelte/icons/trash-2";
 	import type { AllowlistEntry } from "#lib/admin/admin-data.js";
 	import IconChip from "#lib/admin/icon-chip.svelte";
+	import type { AccountTimer } from "#lib/admin/timers.js";
 	import * as Alert from "#lib/components/ui/alert/index.js";
 	import { Button } from "#lib/components/ui/button/index.js";
 	import * as Card from "#lib/components/ui/card/index.js";
@@ -28,16 +29,21 @@
 		sendTestEmail,
 		setInstanceLock,
 	} from "./admin.remote.ts";
+	import TimersCard from "./timers-card.svelte";
 
 	let {
 		locked,
 		allowlist,
+		timers,
+		serverNow,
 		admins,
 		smtp,
 		smtpReady,
 	}: {
 		locked: boolean;
 		allowlist: AllowlistEntry[];
+		timers: AccountTimer[];
+		serverNow: number;
 		admins: string[];
 		smtp: SmtpSettingsView | null;
 		smtpReady: boolean;
@@ -181,6 +187,8 @@
       {/if}
     </Card.Content>
   </Card.Root>
+
+  <TimersCard {timers} {serverNow} />
 
   <Card.Root class="border border-foreground/10">
     <Card.Header>

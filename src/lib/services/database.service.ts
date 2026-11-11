@@ -71,6 +71,15 @@ CREATE TABLE IF NOT EXISTS custom_backends (
 	banned_by      TEXT
 );
 
+-- Per-account access timers set from /admin. Past expires_at the account is
+-- signed out on its next request and refused at sign-in. Times are unix ms.
+CREATE TABLE IF NOT EXISTS account_timers (
+	email       TEXT PRIMARY KEY,
+	expires_at  INTEGER NOT NULL,
+	set_at      INTEGER NOT NULL,
+	set_by      TEXT NOT NULL
+);
+
 -- Which account keys signed in through each, so account_count stays distinct.
 CREATE TABLE IF NOT EXISTS custom_backend_accounts (
 	backend_id   TEXT NOT NULL,

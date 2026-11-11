@@ -118,6 +118,8 @@
       <SettingsTab
         locked={data.locked}
         allowlist={data.allowlist}
+        timers={data.timers}
+        serverNow={data.serverNow}
         admins={data.admins}
         smtp={smtp.current}
         smtpReady={smtp.ready}
